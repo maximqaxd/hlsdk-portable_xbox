@@ -32,6 +32,10 @@
 #include "../com_weapons.h"
 #include "../demo.h"
 
+#if XASH_XBOX
+#include <stdarg.h>
+#endif 
+
 extern globalvars_t *gpGlobals;
 extern int g_iUser1;
 

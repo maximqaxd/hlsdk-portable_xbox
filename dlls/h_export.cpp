@@ -44,7 +44,12 @@ BOOL WINAPI DllMain( HINSTANCE hinstDLL, DWORD fdwReason, LPVOID lpvReserved )
 }
 
 // stdcall for win32
+#if !XASH_XBOX
 #define EXPORT2 WINAPI
+#else
+#define EXPORT2
+#endif
+
 #else
 #define EXPORT2
 #endif

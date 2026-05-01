@@ -31,7 +31,9 @@
 #include "weapons.h"
 #include "gamerules.h"
 #include "byteswap.h"
-
+#if XASH_XBOX
+#include <stdarg.h>
+#endif
 float UTIL_WeaponTimeBase( void )
 {
 #if CLIENT_WEAPONS

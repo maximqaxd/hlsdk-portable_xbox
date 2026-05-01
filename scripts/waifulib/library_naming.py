@@ -58,6 +58,7 @@ DEFINES = [
 'XASH_SERENITY',
 'XASH_TERMUX',
 'XASH_WIN32',
+'XASH_XBOX',
 'XASH_X86',
 'XASH_NSWITCH',
 'XASH_PSVITA',
@@ -111,6 +112,8 @@ def configure(conf):
 		buildos = "wasi"
 	elif conf.env.XASH_SUNOS:
 		buildos = "sunos"
+	elif conf.env.XASH_XBOX:
+		buildos = "xbox"
 	elif conf.env.XASH_HURD:
 		buildos = "hurd"
 	else:

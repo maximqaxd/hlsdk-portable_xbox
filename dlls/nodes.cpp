@@ -2751,6 +2751,7 @@ int CGraph::CheckNODFile( const char *szMapName )
 
 	retValue = TRUE;
 
+#if !XASH_XBOX // TODO: reenable when COMPARE_FILE_TIME is fixed
 	int iCompare;
 	if( COMPARE_FILE_TIME( szBspFilename, szGraphFilename, &iCompare ) )
 	{
@@ -2765,7 +2766,7 @@ int CGraph::CheckNODFile( const char *szMapName )
 	{
 		retValue = FALSE;
 	}
-
+#endif
 	return retValue;
 }
 

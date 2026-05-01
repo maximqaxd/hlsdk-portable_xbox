@@ -99,7 +99,7 @@ def configure(conf):
 
 	conf.load('msvs msdev subproject clang_compilation_database strip_on_install enforce_pic')
 
-	conf.check_pic(True) # modern defaults
+	conf.check_pic(conf.env.DEST_OS != 'xbox') # Xbox PE DLLs do not use PIC
 	if conf.env.DEST_OS != 'win32':
 		def check_libc_extension(frag, msg, define):
 			conf.export_define(define, conf.simple_check(frag, msg, use='werror export'))
@@ -229,6 +229,8 @@ def configure(conf):
 		else:
 			for i in a:
 				conf.check_cc(lib = i)
+	elif conf.env.DEST_OS == 'xbox':
+		pass
 	else:
 		conf.check_cc(lib='m')
 
@@ -253,6 +255,15 @@ def configure(conf):
 		conf.define('_CRT_NONSTDC_NO_DEPRECATE', True)
 	elif conf.env.COMPILER_CC == 'owcc':
 		pass
+	elif conf.env.DEST_OS == 'xbox':
+		conf.env.append_unique('CXXFLAGS', ['-Wno-invalid-offsetof', '-fno-exceptions'])
+		# __chkstk is not available in DLLs — disable stack probing
+		conf.env.append_unique('CFLAGS', ['-mstack-probe-size=999999', '-mno-sse2'])
+		conf.env.append_unique('CXXFLAGS', ['-mstack-probe-size=999999', '-mno-sse2'])
+		conf.define('stricmp', 'strcasecmp', quote=False)
+		conf.define('strnicmp', 'strncasecmp', quote=False)
+		conf.define('_snprintf', 'snprintf', quote=False)
+		conf.define('_vsnprintf', 'vsnprintf', quote=False)
 	else:
 		conf.env.append_unique('CXXFLAGS', ['-Wno-invalid-offsetof', '-fno-exceptions'])
 		conf.define('stricmp', 'strcasecmp', quote=False)

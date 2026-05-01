@@ -9,15 +9,21 @@ def options(opt):
 	return
 
 def configure(conf):
-	if conf.env.COMPILER_CC == 'msvc':
+	if conf.env.COMPILER_CC == 'msvc' or conf.env.DEST_OS == 'xbox':
 		# hl.def removes MSVC function name decoration from GiveFnptrsToDll on Windows.
 		# Without this, the lookup for this function fails.
 		hlDefNode = conf.path.find_resource("./hl.def")
 
 		if hlDefNode is not None:
-			conf.env.append_value('LINKFLAGS', '/def:%s' % hlDefNode.abspath())
+			if conf.env.DEST_OS == 'xbox':
+				conf.env.append_value('LINKFLAGS', '-Wl,/def:%s' % hlDefNode.abspath())
+			else:
+				conf.env.append_value('LINKFLAGS', '/def:%s' % hlDefNode.abspath())
 		else:
 			conf.fatal("Could not find hl.def")
+
+	if conf.env.DEST_OS == 'xbox':
+		conf.env.append_value('LINKFLAGS', '-Wl,/entry:_DllMainCRTStartup')
 
 def build(bld):
 	excluded_files = ['mpstubb.cpp', 'stats.cpp', 'Wxdebug.cpp']

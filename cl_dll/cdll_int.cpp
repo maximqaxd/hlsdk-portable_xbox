@@ -359,7 +359,7 @@ void DLLEXPORT HUD_Frame( double time )
 #elif USE_FAKE_VGUI
 	if (!gViewPort)
 		gEngfuncs.VGui_ViewportPaintBackground(HUD_GetRect());
-#else
+#elif !XASH_XBOX
 	gEngfuncs.VGui_ViewportPaintBackground(HUD_GetRect());
 #endif
 }

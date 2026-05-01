@@ -7,7 +7,11 @@
 
 // Client side entity management functions
 
+#if NXDK
+#include <string.h>
+#else
 #include <memory.h>
+#endif
 
 #include "hud.h"
 #include "cl_util.h"

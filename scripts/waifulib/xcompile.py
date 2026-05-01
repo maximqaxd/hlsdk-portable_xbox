@@ -42,6 +42,70 @@ NSWITCH_ENVVARS = ['DEVKITPRO']
 
 PSVITA_ENVVARS = ['VITASDK']
 
+XBOX_ENVVARS = ['NXDK_DIR']
+
+class Xbox:
+	ctx      = None
+	nxdk_dir = None
+
+	def __init__(self, ctx):
+		self.ctx = ctx
+
+		for var in XBOX_ENVVARS:
+			self.nxdk_dir = os.getenv(var)
+			if self.nxdk_dir:
+				break
+		else:
+			ctx.fatal(
+				'Set %s environment variable pointing to nxdk root, or source nxdk/bin/activate first!' %
+				' or '.join(XBOX_ENVVARS)
+			)
+
+		self.nxdk_dir = os.path.abspath(self.nxdk_dir)
+		bin_dir = os.path.join(self.nxdk_dir, 'bin')
+		if not os.path.isfile(os.path.join(bin_dir, 'nxdk-cc')):
+			ctx.fatal('nxdk-cc not found in %s. Is NXDK_DIR correct?' % bin_dir)
+
+		current_path = os.environ.get('PATH', '')
+		new_path = bin_dir + os.pathsep + current_path
+		os.environ['PATH'] = new_path
+		ctx.environ['PATH'] = new_path
+
+	def _bin(self, name):
+		return os.path.join(self.nxdk_dir, 'bin', name)
+
+	def cc(self):
+		return self._bin('nxdk-cc')
+
+	def cxx(self):
+		return self._bin('nxdk-cxx')
+
+	def strip(self):
+		return 'llvm-strip'
+
+	def cflags(self, cxx = False):
+		return [
+			'-Wno-error=implicit-function-declaration',
+			'-Wno-macro-redefined',
+			'-Wno-microsoft-enum-forward-reference',
+		]
+
+	def linkflags(self):
+		nxdk = self.nxdk_dir
+		return [
+			'%s/lib/libnxdk.lib' % nxdk,
+			'%s/lib/libpdclib.lib' % nxdk,
+			'%s/lib/libwinapi.lib' % nxdk,
+			'%s/lib/libxboxrt.lib' % nxdk,
+			'%s/lib/libnxdk_hal.lib' % nxdk,
+			'%s/lib/libnxdk_automount_d.lib' % nxdk,
+			'-include:_automount_d_drive',
+			'%s/lib/xboxkrnl/libxboxkrnl.lib' % nxdk,
+		]
+
+	def ldflags(self):
+		return []
+
 # This class does support ONLY r10e and r19c/r20 NDK
 class Android:
 	ctx            = None # waf context
@@ -541,6 +605,8 @@ def options(opt):
 		help='enable building for Sailfish/Aurora')
 	xc.add_option('--emscripten', action='store_true', dest='EMSCRIPTEN', default = None,
 		help='enable building for Emscripten')
+	xc.add_option('--xbox', action='store_true', dest='XBOX', default = False,
+		help='enable building for Original Xbox via nxdk [default: %(default)s]')
 
 def configure(conf):
 	if 'CROSS_COMPILE' in conf.environ:
@@ -646,16 +712,68 @@ def configure(conf):
 		conf.environ['STRIP'] = 'emstrip'
 		conf.environ['OBJCOPY'] = 'llvm-objcopy'
 		conf.load('c_emscripten')
+	elif conf.options.XBOX:
+		conf.xbox = xbox = Xbox(conf)
+		conf.environ['CC'] = xbox.cc()
+		conf.environ['CXX'] = xbox.cxx()
+		conf.environ['STRIP'] = xbox.strip()
+		nxdk_pkgcfg = xbox._bin('nxdk-pkg-config')
+		nxdk_pkgcfgpath = '%s/lib/pkgconfig' % xbox.nxdk_dir
+		conf.environ['PKG_CONFIG'] = nxdk_pkgcfg
+		conf.environ['PKG_CONFIG_PATH'] = nxdk_pkgcfgpath
+		conf.environ['NXDK_DIR'] = xbox.nxdk_dir
+		conf.find_program(nxdk_pkgcfg, var='PKGCONFIG', mandatory=False)
+		conf.find_program(nxdk_pkgcfg, var='PKG_CONFIG', mandatory=False)
+		conf.env.CFLAGS += xbox.cflags()
+		conf.env.CXXFLAGS += xbox.cflags(True)
+		conf.env.LINKFLAGS += xbox.linkflags()
+		conf.env.LDFLAGS += xbox.ldflags()
+		conf.env.DEST_OS = 'xbox'
+		conf.env.DEST_BINFMT = 'pe'
+		conf.env.DEST_CPU = 'x86'
+		conf.msg('Selected nxdk', xbox.nxdk_dir)
+		conf.msg('... CC', xbox.cc())
+		conf.msg('... extra CFLAGS', ' '.join(xbox.cflags()))
+		conf.msg('... LINKFLAGS (nxdk libs)', ' '.join(xbox.linkflags()))
 
 	conf.env.MAGX = conf.options.MAGX
 	conf.env.MSVC_WINE = conf.options.MSVC_WINE
 	conf.env.SAILFISH = conf.options.SAILFISH
-	MACRO_TO_DESTOS = OrderedDict({ '__ANDROID__' : 'android', '__SWITCH__' : 'nswitch', '__vita__' : 'psvita', '__wasi__': 'wasi', '__EMSCRIPTEN__' : 'emscripten' })
+	MACRO_TO_DESTOS = OrderedDict({ '__ANDROID__' : 'android', '__SWITCH__' : 'nswitch', '__vita__' : 'psvita', '__wasi__': 'wasi', '__EMSCRIPTEN__' : 'emscripten', 'NXDK': 'xbox' })
 	for k in c_config.MACRO_TO_DESTOS:
 		MACRO_TO_DESTOS[k] = c_config.MACRO_TO_DESTOS[k] # ordering is important
 	c_config.MACRO_TO_DESTOS  = MACRO_TO_DESTOS
 
+def _xbox_fix_env(conf):
+	conf.env.DEST_OS = 'xbox'
+	conf.env.cstlib_PATTERN = '%s.lib'
+	conf.env.cxxstlib_PATTERN = '%s.lib'
+	conf.env.implib_PATTERN = '%s.lib'
+	conf.env.IMPLIB_ST = '-Wl,/IMPLIB:%s'
+	conf.env.RPATH_ST = ''
+	conf.env.DEFAULT_RPATH = ''
+	conf.env.SHLIB_MARKER = ''
+	conf.env.STLIB_MARKER = ''
+	conf.env.LINKFLAGS = [f for f in conf.env.LINKFLAGS if '--enable-auto-import' not in f]
+
+	xb = getattr(conf, 'xbox', None)
+	if xb:
+		nxdk_pkgcfg = xb._bin('nxdk-pkg-config')
+		conf.environ['NXDK_DIR'] = xb.nxdk_dir
+		conf.environ['PKG_CONFIG'] = nxdk_pkgcfg
+		conf.environ['PKG_CONFIG_PATH'] = os.path.join(xb.nxdk_dir, 'lib', 'pkgconfig')
+		conf.find_program(nxdk_pkgcfg, var='PKGCONFIG', mandatory=False)
+		conf.find_program(['llvm-ar', 'llvm-ar-21', 'llvm-ar-20', 'llvm-ar-19', 'llvm-ar-18', 'llvm-ar-17'], var='AR', mandatory=True)
+		if not conf.env.ARFLAGS:
+			conf.env.ARFLAGS = ['rcs']
+
+	for flag in ['-Wl,/entry:_DllMainCRTStartup', '-Wl,/fixed:no']:
+		conf.env.append_unique('LINKFLAGS_cshlib', flag)
+		conf.env.append_unique('LINKFLAGS_cxxshlib', flag)
+
 def post_compiler_cxx_configure(conf):
+	if getattr(conf.options, 'XBOX', False):
+		_xbox_fix_env(conf)
 	conf.msg('Target OS', conf.env.DEST_OS)
 	conf.msg('Target CPU', conf.env.DEST_CPU)
 	conf.msg('Target binfmt', conf.env.DEST_BINFMT)
@@ -671,6 +789,8 @@ def post_compiler_cxx_configure(conf):
 	return
 
 def post_compiler_c_configure(conf):
+	if getattr(conf.options, 'XBOX', False):
+		_xbox_fix_env(conf)
 	conf.msg('Target OS', conf.env.DEST_OS)
 	conf.msg('Target CPU', conf.env.DEST_CPU)
 	conf.msg('Target binfmt', conf.env.DEST_BINFMT)

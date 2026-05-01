@@ -85,6 +85,7 @@ Then you can use another oneliner to query all variables:
 #undef XASH_SUNOS
 #undef XASH_TERMUX
 #undef XASH_WIN32
+#undef XASH_XBOX
 #undef XASH_X86
 #undef XASH_NSWITCH
 #undef XASH_PSVITA
@@ -99,6 +100,9 @@ Then you can use another oneliner to query all variables:
 //================================================================
 #if defined _WIN32
 	#define XASH_WIN32 1
+	#if NXDK
+		#define XASH_XBOX 1
+	#endif
 #elif defined __WATCOMC__ && defined __DOS__
 	#define XASH_DOS4GW 1
 #else // POSIX compatible
